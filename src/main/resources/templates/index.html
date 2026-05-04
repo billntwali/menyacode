@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RepoLens – GitHub Repository Explorer</title>
+    <link rel="stylesheet" th:href="@{/app.css}" />
+</head>
+<body>
+    <div class="bg-decoration" aria-hidden="true"></div>
+
+    <main class="main-container">
+
+        <!-- ── Header / Form ──────────────────────────────────── -->
+        <section class="card header-card">
+            <p class="eyebrow">RepoLens</p>
+            <h1>GitHub Repository Structure Explorer</h1>
+            <p class="subtitle">
+                Enter a public repository URL, choose DFS or BFS, and explore the live tree with AI-powered file summaries.
+            </p>
+
+            <form id="explore-form" class="explore-form" novalidate>
+                <label class="field-label">
+                    Repository URL
+                    <input id="repo-url"
+                           class="field-input"
+                           type="text"
+                           placeholder="https://github.com/owner/repository"
+                           value="https://github.com/vercel/next.js"
+                           autocomplete="off"
+                           required />
+                </label>
+
+                <label class="field-label">
+                    Traversal Mode
+                    <select id="traversal-mode" class="field-input field-select">
+                        <option value="dfs">Depth-First Search (DFS)</option>
+                        <option value="bfs">Breadth-First Search (BFS)</option>
+                    </select>
+                </label>
+
+                <button id="explore-btn" class="btn-primary" type="submit">
+                    Explore Repository
+                </button>
+            </form>
+
+            <div id="error-banner" class="error-banner" hidden></div>
+        </section>
+
+        <!-- ── Results grid ───────────────────────────────────── -->
+        <section class="results-grid">
+
+            <!-- Tree panel -->
+            <article class="card tree-card">
+                <div class="panel-header">
+                    <div>
+                        <h2>Repository Tree</h2>
+                        <p class="panel-sub">Interactive folder and file hierarchy</p>
+                    </div>
+                    <span id="tree-badge" class="badge" hidden></span>
+                </div>
+
+                <div id="tree-placeholder" class="placeholder">
+                    Run a repository search to render the tree.
+                </div>
+                <ul id="tree-root" class="tree-list" hidden></ul>
+            </article>
+
+            <!-- Details panel -->
+            <article class="card details-card">
+                <h2>Node Details</h2>
+                <p class="panel-sub">Metadata and traversal position for the selected node</p>
+
+                <div id="details-placeholder" class="placeholder">
+                    Select a node from the tree to inspect details.
+                </div>
+
+                <div id="details-content" hidden>
+                    <dl class="meta-grid">
+                        <div class="meta-item">
+                            <dt>Name</dt>
+                            <dd id="meta-name"></dd>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Path</dt>
+                            <dd id="meta-path" class="break-all"></dd>
+                        </div>
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <dt>Type</dt>
+                                <dd id="meta-type"></dd>
+                            </div>
+                            <div class="meta-item">
+                                <dt>Size</dt>
+                                <dd id="meta-size"></dd>
+                            </div>
+                        </div>
+                        <div class="meta-row">
+                            <div class="meta-item">
+                                <dt>Traversal Order</dt>
+                                <dd id="meta-order"></dd>
+                            </div>
+                            <div class="meta-item">
+                                <dt>Traversal Depth</dt>
+                                <dd id="meta-depth"></dd>
+                            </div>
+                        </div>
+                        <div class="meta-item">
+                            <dt>Repository</dt>
+                            <dd><a id="meta-repo-link" href="#" target="_blank" rel="noreferrer"></a></dd>
+                        </div>
+                    </dl>
+
+                    <!-- Summary section (files only) -->
+                    <div id="summary-section" hidden>
+                        <div class="summary-divider"></div>
+                        <div class="summary-header">
+                            <h3>AI Summary</h3>
+                            <button id="summarize-btn" class="btn-secondary" type="button">
+                                Generate Summary
+                            </button>
+                        </div>
+                        <div id="summary-loading" class="summary-loading" hidden>
+                            <span class="spinner" aria-hidden="true"></span>
+                            Generating summary…
+                        </div>
+                        <div id="summary-error" class="summary-error" hidden></div>
+                        <p id="summary-text" class="summary-text" hidden></p>
+                    </div>
+                </div>
+            </article>
+
+        </section>
+    </main>
+
+    <script th:src="@{/app.js}"></script>
+</body>
+</html>
