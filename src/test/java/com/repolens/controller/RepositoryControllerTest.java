@@ -177,7 +177,7 @@ class RepositoryControllerTest {
     @Test
     void summary_validRequest_returns200WithSummary() throws Exception {
         when(summaryService.summarize(any()))
-                .thenReturn(new SummaryResponse("src/Main.java", "This file contains the entry point."));
+                .thenReturn(new SummaryResponse("src/Main.java", "This file contains the entry point.", "gpt-4o-mini", "Java", 1234));
 
         mvc.perform(post("/api/repository/summary")
                         .contentType(MediaType.APPLICATION_JSON)
