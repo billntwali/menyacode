@@ -46,6 +46,8 @@ public class OpenAiClient {
                 .build();
     }
 
+    public String getModel() { return model; }
+
     public String generateSummary(String filePath, String content) {
         if (apiKey.isBlank()) {
             throw new OpenAiException(
