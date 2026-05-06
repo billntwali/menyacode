@@ -53,7 +53,39 @@ public class SummaryService {
         }
 
         String summary = openAiClient.generateSummary(request.filePath(), textContent);
-        return new SummaryResponse(request.filePath(), summary);
+        return new SummaryResponse(
+                request.filePath(),
+                summary,
+                openAiClient.getModel(),
+                detectLanguage(request.filePath()),
+                textContent.length());
+    }
+
+    private String detectLanguage(String filePath) {
+        String name = filePath.toLowerCase();
+        if (name.endsWith(".java"))                              return "Java";
+        if (name.endsWith(".py"))                               return "Python";
+        if (name.endsWith(".ts") || name.endsWith(".tsx"))      return "TypeScript";
+        if (name.endsWith(".jsx"))                              return "JSX";
+        if (name.endsWith(".js") || name.endsWith(".mjs"))      return "JavaScript";
+        if (name.endsWith(".go"))                               return "Go";
+        if (name.endsWith(".rs"))                               return "Rust";
+        if (name.endsWith(".rb"))                               return "Ruby";
+        if (name.endsWith(".php"))                              return "PHP";
+        if (name.endsWith(".cs"))                               return "C#";
+        if (name.endsWith(".cpp") || name.endsWith(".cc"))      return "C++";
+        if (name.endsWith(".c") || name.endsWith(".h"))         return "C";
+        if (name.endsWith(".swift"))                            return "Swift";
+        if (name.endsWith(".kt") || name.endsWith(".kts"))      return "Kotlin";
+        if (name.endsWith(".html") || name.endsWith(".htm"))    return "HTML";
+        if (name.endsWith(".css") || name.endsWith(".scss"))    return "CSS";
+        if (name.endsWith(".json"))                             return "JSON";
+        if (name.endsWith(".xml"))                              return "XML";
+        if (name.endsWith(".yaml") || name.endsWith(".yml"))    return "YAML";
+        if (name.endsWith(".md"))                               return "Markdown";
+        if (name.endsWith(".sh") || name.endsWith(".bash"))     return "Shell";
+        if (name.endsWith(".sql"))                              return "SQL";
+        return "Text";
     }
 
     private String decodeContent(FileContentsResult result, String filePath) {
