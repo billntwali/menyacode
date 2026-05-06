@@ -1,4 +1,4 @@
-# RepoLens
+# MenyaCode
 
 GitHub Repository Structure Explorer — Java/Spring Boot edition.
 
