@@ -13,21 +13,32 @@ const state = {
 
 // ── DOM refs ─────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
-const exploreForm     = $('explore-form');
-const repoUrlInput    = $('repo-url');
-const traversalSelect = $('traversal-mode');
-const exploreBtn      = $('explore-btn');
-const errorBanner     = $('error-banner');
-const treeBadge       = $('tree-badge');
-const treePlaceholder = $('tree-placeholder');
-const treeRoot        = $('tree-root');
+const exploreForm        = $('explore-form');
+const repoUrlInput       = $('repo-url');
+const traversalSelect    = $('traversal-mode');
+const exploreBtn         = $('explore-btn');
+const errorBanner        = $('error-banner');
+const treeBadges         = $('tree-badges');
+const badgeTraversal     = $('badge-traversal');
+const badgeCount         = $('badge-count');
+const treePlaceholder    = $('tree-placeholder');
+const treeRoot           = $('tree-root');
 const detailsPlaceholder = $('details-placeholder');
-const detailsContent  = $('details-content');
-const summarySection  = $('summary-section');
-const summarizeBtn    = $('summarize-btn');
-const summaryLoading  = $('summary-loading');
-const summaryError    = $('summary-error');
-const summaryText     = $('summary-text');
+const detailsContent     = $('details-content');
+const summarySection     = $('summary-section');
+const summaryMeta        = $('summary-meta');
+const summarizeBtn       = $('summarize-btn');
+const summaryLoading     = $('summary-loading');
+const summaryError       = $('summary-error');
+const summaryText        = $('summary-text');
+
+// ── TRY chip click handlers ───────────────────────────────────────
+document.querySelectorAll('.try-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+        repoUrlInput.value = btn.dataset.repo;
+        repoUrlInput.focus();
+    });
+});
 
 // ── Explore form submission ───────────────────────────────────────
 exploreForm.addEventListener('submit', async (e) => {
@@ -86,8 +97,9 @@ function renderTree(data) {
     treePlaceholder.hidden = true;
     treeRoot.hidden        = false;
 
-    treeBadge.textContent = `${data.traversal_mode.toUpperCase()} • ${data.traversal.length} nodes`;
-    treeBadge.hidden      = false;
+    badgeTraversal.textContent = data.traversal_mode === 'dfs' ? 'Depth-First' : 'Breadth-First';
+    badgeCount.textContent     = `${data.traversal.length} nodes`;
+    treeBadges.hidden          = false;
 }
 
 function createTreeItem(node, depth, isRoot) {
@@ -235,6 +247,14 @@ summarizeBtn.addEventListener('click', async () => {
 
         summaryText.textContent = payload.summary;
         summaryText.hidden      = false;
+
+        if (payload.model || payload.language || payload.analyzed_chars) {
+            $('summary-model').textContent    = payload.model    ?? '—';
+            $('summary-language').textContent = payload.language ?? '—';
+            $('summary-chars').textContent    = payload.analyzed_chars != null
+                ? payload.analyzed_chars.toLocaleString() : '—';
+            summaryMeta.hidden = false;
+        }
     } catch (err) {
         showSummaryError(err instanceof Error ? err.message : 'Unexpected error generating summary.');
     } finally {
@@ -246,6 +266,7 @@ function resetSummary() {
     summaryLoading.hidden = true;
     summaryError.hidden   = true;
     summaryText.hidden    = true;
+    summaryMeta.hidden    = true;
     summarizeBtn.disabled = false;
     summaryText.textContent = '';
 }
@@ -299,14 +320,14 @@ function hideError() {
 
 function setLoading(loading) {
     exploreBtn.disabled   = loading;
-    exploreBtn.textContent = loading ? 'Loading…' : 'Explore Repository';
+    exploreBtn.textContent = loading ? 'Loading…' : 'Load Repository';
 }
 
 function clearTree() {
-    treeRoot.innerHTML    = '';
-    treeRoot.hidden       = true;
+    treeRoot.innerHTML     = '';
+    treeRoot.hidden        = true;
     treePlaceholder.hidden = false;
-    treeBadge.hidden      = true;
+    treeBadges.hidden      = true;
 }
 
 function clearDetails() {
