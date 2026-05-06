@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RepoLens – GitHub Repository Explorer</title>
+    <title>MenyaCode – GitHub Repository Explorer</title>
     <link rel="stylesheet" th:href="@{/app.css}" />
 </head>
 <body>
@@ -13,10 +13,10 @@
 
         <!-- ── Header / Form ──────────────────────────────────── -->
         <section class="card header-card">
-            <p class="eyebrow">RepoLens</p>
-            <h1>GitHub Repository Structure Explorer</h1>
+            <h1>MenyaCode</h1>
             <p class="subtitle">
-                Enter a public repository URL, choose DFS or BFS, and explore the live tree with AI-powered file summaries.
+                Explore public GitHub repositories, navigate folder structures with DFS or BFS, and generate
+                quick AI summaries for selected files.
             </p>
 
             <form id="explore-form" class="explore-form" novalidate>
@@ -32,7 +32,7 @@
                 </label>
 
                 <label class="field-label">
-                    Traversal Mode
+                    Traversal
                     <select id="traversal-mode" class="field-input field-select">
                         <option value="dfs">Depth-First Search (DFS)</option>
                         <option value="bfs">Breadth-First Search (BFS)</option>
@@ -40,9 +40,17 @@
                 </label>
 
                 <button id="explore-btn" class="btn-primary" type="submit">
-                    Explore Repository
+                    Load Repository
                 </button>
             </form>
+
+            <div class="try-links">
+                <span class="try-label">TRY:</span>
+                <button class="try-chip" type="button" data-repo="https://github.com/vercel/next.js">Next.js</button>
+                <button class="try-chip" type="button" data-repo="https://github.com/facebook/react">React</button>
+                <button class="try-chip" type="button" data-repo="https://github.com/tiangolo/fastapi">FastAPI</button>
+                <button class="try-chip" type="button" data-repo="https://github.com/tailwindlabs/tailwindcss">Tailwind</button>
+            </div>
 
             <div id="error-banner" class="error-banner" hidden></div>
         </section>
@@ -52,31 +60,37 @@
 
             <!-- Tree panel -->
             <article class="card tree-card">
+                <div class="panel-accent"></div>
                 <div class="panel-header">
                     <div>
                         <h2>Repository Tree</h2>
-                        <p class="panel-sub">Interactive folder and file hierarchy</p>
+                        <p class="panel-sub">Expand folders and inspect repository hierarchy</p>
                     </div>
-                    <span id="tree-badge" class="badge" hidden></span>
+                </div>
+
+                <div id="tree-badges" class="badge-row" hidden>
+                    <span id="badge-traversal" class="badge badge-teal"></span>
+                    <span id="badge-count"     class="badge badge-gray"></span>
                 </div>
 
                 <div id="tree-placeholder" class="placeholder">
-                    Run a repository search to render the tree.
+                    Load a repository to render the tree.
                 </div>
                 <ul id="tree-root" class="tree-list" hidden></ul>
             </article>
 
             <!-- Details panel -->
             <article class="card details-card">
+                <div class="panel-accent"></div>
                 <h2>Node Details</h2>
-                <p class="panel-sub">Metadata and traversal position for the selected node</p>
+                <p class="panel-sub">Metadata and traversal context for the selected node</p>
 
-                <div id="details-placeholder" class="placeholder">
+                <div id="details-placeholder" class="placeholder" style="margin-top:1rem;">
                     Select a node from the tree to inspect details.
                 </div>
 
                 <div id="details-content" hidden>
-                    <dl class="meta-grid">
+                    <dl class="meta-grid" style="margin-top:1rem;">
                         <div class="meta-item">
                             <dt>Name</dt>
                             <dd id="meta-name"></dd>
@@ -115,10 +129,15 @@
                     <div id="summary-section" hidden>
                         <div class="summary-divider"></div>
                         <div class="summary-header">
-                            <h3>AI Summary</h3>
+                            <h3>AI File Summary</h3>
                             <button id="summarize-btn" class="btn-secondary" type="button">
                                 Generate Summary
                             </button>
+                        </div>
+                        <div id="summary-meta" class="summary-meta" hidden>
+                            <span>Model: <strong id="summary-model"></strong></span>
+                            <span>Language: <strong id="summary-language"></strong></span>
+                            <span>Analyzed: <strong id="summary-chars"></strong> chars</span>
                         </div>
                         <div id="summary-loading" class="summary-loading" hidden>
                             <span class="spinner" aria-hidden="true"></span>
