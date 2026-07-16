@@ -1,157 +1,96 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MenyaCode – GitHub Repository Explorer</title>
-    <link rel="stylesheet" th:href="@{/app.css}" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore and understand public GitHub repositories.">
+    <title>MenyaCode — Repository intelligence</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
 </head>
 <body>
-    <div class="bg-decoration" aria-hidden="true"></div>
+<header class="topbar">
+    <a class="brand" href="/" aria-label="MenyaCode home"><span class="brand-mark">M</span><span>MenyaCode</span></a>
+    <form id="explore-form" class="repo-form" novalidate>
+        <label class="sr-only" for="repo-url">GitHub repository URL</label>
+        <input id="repo-url" type="text" placeholder="github.com/owner/repository" autocomplete="url" required>
+        <label class="sr-only" for="branch">Branch</label>
+        <input id="branch" class="branch-input" type="text" placeholder="default branch">
+        <button id="explore-btn" class="primary-btn" type="submit">Analyze</button>
+    </form>
+    <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle dark theme" title="Toggle theme">◐</button>
+</header>
 
-    <main class="main-container">
+<div id="error-banner" class="notice error" role="alert" aria-live="assertive" hidden></div>
 
-        <!-- ── Header / Form ──────────────────────────────────── -->
-        <section class="card header-card">
-            <h1>MenyaCode</h1>
-            <p class="subtitle">
-                Explore public GitHub repositories, navigate folder structures with DFS or BFS, and generate
-                quick AI summaries for selected files.
-            </p>
+<main>
+    <section id="welcome" class="welcome">
+        <span class="eyebrow">Repository intelligence</span>
+        <h1>Understand unfamiliar codebases faster.</h1>
+        <p>Search a public GitHub repository, inspect its structure, preview files, and ask AI to explain how the pieces fit together.</p>
+        <div class="examples" aria-label="Example repositories">
+            <span>Try an example</span>
+            <button class="try-chip" data-repo="https://github.com/spring-projects/spring-petclinic">Spring Petclinic</button>
+            <button class="try-chip" data-repo="https://github.com/facebook/react">React</button>
+            <button class="try-chip" data-repo="https://github.com/tiangolo/fastapi">FastAPI</button>
+        </div>
+        <div id="recent-section" hidden><h2>Recent repositories</h2><div id="recent-repos" class="recent-list"></div></div>
+    </section>
 
-            <form id="explore-form" class="explore-form" novalidate>
-                <label class="field-label">
-                    Repository URL
-                    <input id="repo-url"
-                           class="field-input"
-                           type="text"
-                           placeholder="https://github.com/owner/repository"
-                           value="https://github.com/vercel/next.js"
-                           autocomplete="off"
-                           required />
-                </label>
-
-                <label class="field-label">
-                    Traversal
-                    <select id="traversal-mode" class="field-input field-select">
-                        <option value="dfs">Depth-First Search (DFS)</option>
-                        <option value="bfs">Breadth-First Search (BFS)</option>
-                    </select>
-                </label>
-
-                <button id="explore-btn" class="btn-primary" type="submit">
-                    Load Repository
-                </button>
-            </form>
-
-            <div class="try-links">
-                <span class="try-label">TRY:</span>
-                <button class="try-chip" type="button" data-repo="https://github.com/vercel/next.js">Next.js</button>
-                <button class="try-chip" type="button" data-repo="https://github.com/facebook/react">React</button>
-                <button class="try-chip" type="button" data-repo="https://github.com/tiangolo/fastapi">FastAPI</button>
-                <button class="try-chip" type="button" data-repo="https://github.com/tailwindlabs/tailwindcss">Tailwind</button>
+    <section id="workspace" class="workspace" hidden>
+        <header class="repo-header">
+            <div>
+                <div class="repo-title-line"><h1 id="repo-title"></h1><span id="repo-branch" class="pill"></span></div>
+                <p id="repo-description" class="repo-description"></p>
+                <div id="repo-topics" class="topic-list"></div>
             </div>
+            <div class="repo-stats">
+                <span id="repo-language"></span><span id="repo-stars"></span><span id="repo-forks"></span>
+                <a id="repo-link" class="secondary-btn" target="_blank" rel="noreferrer">Open on GitHub ↗</a>
+            </div>
+        </header>
 
-            <div id="error-banner" class="error-banner" hidden></div>
-        </section>
+        <div class="workspace-grid">
+            <aside class="explorer-panel">
+                <div class="panel-title"><strong>Explorer</strong><span id="badge-count"></span></div>
+                <label class="search-box"><span>⌕</span><input id="tree-search" type="search" placeholder="Search files…" aria-label="Search repository files"><kbd>/</kbd></label>
+                <div class="tree-tools">
+                    <select id="type-filter" aria-label="Filter nodes"><option value="all">All items</option><option value="file">Files</option><option value="directory">Folders</option></select>
+                    <select id="traversal-mode" aria-label="Traversal mode"><option value="dfs">DFS</option><option value="bfs">BFS</option></select>
+                    <button id="expand-all" class="text-btn" type="button">Expand</button>
+                    <button id="collapse-all" class="text-btn" type="button">Collapse</button>
+                </div>
+                <div id="tree-status" class="tree-status" aria-live="polite"></div>
+                <ul id="tree-root" class="tree-list" role="tree"></ul>
+            </aside>
 
-        <!-- ── Results grid ───────────────────────────────────── -->
-        <section class="results-grid">
-
-            <!-- Tree panel -->
-            <article class="card tree-card">
-                <div class="panel-accent"></div>
-                <div class="panel-header">
-                    <div>
-                        <h2>Repository Tree</h2>
-                        <p class="panel-sub">Expand folders and inspect repository hierarchy</p>
+            <section class="content-panel">
+                <div id="empty-detail" class="empty-detail"><div class="empty-icon">&lt;/&gt;</div><h2>Select a file</h2><p>Choose a file from the explorer to preview and understand it.</p></div>
+                <div id="file-detail" hidden>
+                    <header class="file-header"><div><span id="file-icon"></span><strong id="file-name"></strong><span id="file-path"></span></div><a id="file-github-link" target="_blank" rel="noreferrer">Open file ↗</a></header>
+                    <div class="tabs" role="tablist">
+                        <button class="tab active" data-tab="preview" role="tab" aria-selected="true">Preview</button>
+                        <button class="tab" data-tab="ai" role="tab" aria-selected="false">AI explanation</button>
+                        <button class="tab" data-tab="metadata" role="tab" aria-selected="false">Metadata</button>
                     </div>
+                    <section id="tab-preview" class="tab-panel">
+                        <div class="code-toolbar"><span id="preview-language"></span><span id="preview-size"></span><button id="copy-code" class="text-btn">Copy</button></div>
+                        <div id="preview-loading" class="loading" hidden><span class="spinner"></span>Loading file…</div>
+                        <div id="preview-notice" class="notice" hidden></div>
+                        <pre class="code-view"><code id="file-content"></code></pre>
+                    </section>
+                    <section id="tab-ai" class="tab-panel" hidden>
+                        <div class="ai-intro"><div><h2>AI explanation</h2><p>Purpose, key components, patterns, and dependencies.</p></div><button id="summarize-btn" class="primary-btn">Generate explanation</button></div>
+                        <div id="summary-loading" class="loading" hidden><span class="spinner"></span>Analyzing file…</div>
+                        <div id="summary-error" class="notice error" hidden></div>
+                        <div id="summary-meta" class="summary-meta" hidden></div>
+                        <article id="summary-text" class="summary-text" hidden></article>
+                    </section>
+                    <section id="tab-metadata" class="tab-panel" hidden><dl id="metadata-grid" class="metadata-grid"></dl></section>
                 </div>
-
-                <div id="tree-badges" class="badge-row" hidden>
-                    <span id="badge-traversal" class="badge badge-teal"></span>
-                    <span id="badge-count"     class="badge badge-gray"></span>
-                </div>
-
-                <div id="tree-placeholder" class="placeholder">
-                    Load a repository to render the tree.
-                </div>
-                <ul id="tree-root" class="tree-list" hidden></ul>
-            </article>
-
-            <!-- Details panel -->
-            <article class="card details-card">
-                <div class="panel-accent"></div>
-                <h2>Node Details</h2>
-                <p class="panel-sub">Metadata and traversal context for the selected node</p>
-
-                <div id="details-placeholder" class="placeholder" style="margin-top:1rem;">
-                    Select a node from the tree to inspect details.
-                </div>
-
-                <div id="details-content" hidden>
-                    <dl class="meta-grid" style="margin-top:1rem;">
-                        <div class="meta-item">
-                            <dt>Name</dt>
-                            <dd id="meta-name"></dd>
-                        </div>
-                        <div class="meta-item">
-                            <dt>Path</dt>
-                            <dd id="meta-path" class="break-all"></dd>
-                        </div>
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <dt>Type</dt>
-                                <dd id="meta-type"></dd>
-                            </div>
-                            <div class="meta-item">
-                                <dt>Size</dt>
-                                <dd id="meta-size"></dd>
-                            </div>
-                        </div>
-                        <div class="meta-row">
-                            <div class="meta-item">
-                                <dt>Traversal Order</dt>
-                                <dd id="meta-order"></dd>
-                            </div>
-                            <div class="meta-item">
-                                <dt>Traversal Depth</dt>
-                                <dd id="meta-depth"></dd>
-                            </div>
-                        </div>
-                        <div class="meta-item">
-                            <dt>Repository</dt>
-                            <dd><a id="meta-repo-link" href="#" target="_blank" rel="noreferrer"></a></dd>
-                        </div>
-                    </dl>
-
-                    <!-- Summary section (files only) -->
-                    <div id="summary-section" hidden>
-                        <div class="summary-divider"></div>
-                        <div class="summary-header">
-                            <h3>AI File Summary</h3>
-                            <button id="summarize-btn" class="btn-secondary" type="button">
-                                Generate Summary
-                            </button>
-                        </div>
-                        <div id="summary-meta" class="summary-meta" hidden>
-                            <span>Model: <strong id="summary-model"></strong></span>
-                            <span>Language: <strong id="summary-language"></strong></span>
-                            <span>Analyzed: <strong id="summary-chars"></strong> chars</span>
-                        </div>
-                        <div id="summary-loading" class="summary-loading" hidden>
-                            <span class="spinner" aria-hidden="true"></span>
-                            Generating summary…
-                        </div>
-                        <div id="summary-error" class="summary-error" hidden></div>
-                        <p id="summary-text" class="summary-text" hidden></p>
-                    </div>
-                </div>
-            </article>
-
-        </section>
-    </main>
-
-    <script th:src="@{/app.js}"></script>
+            </section>
+        </div>
+    </section>
+</main>
+<script th:src="@{/app.js}"></script>
 </body>
 </html>
