@@ -13,7 +13,11 @@ Explore any public GitHub repository as an interactive tree with DFS or BFS trav
 - **Explore any public GitHub repo** — paste a URL, get the full file tree fetched from the GitHub Git Trees API.
 - **DFS or BFS traversal** — switch traversal strategies and see the visit order/depth on each node.
 - **Interactive tree UI** — expand/collapse folders, click any node to view metadata (path, size, type, traversal order/depth).
+- **Repository intelligence workspace** — responsive repository metadata, topics, stars, forks, branch selection, and direct GitHub links.
+- **Instant search and filtering** — search paths, filter files/folders, use the `/` shortcut, and switch DFS/BFS without another GitHub request.
+- **Safe file previews** — inspect line-numbered text with language and size metadata, truncation notices, and copy support.
 - **AI file summaries** — generate a plain-English explanation of any individual file via OpenAI, with automatic language detection.
+- **Workspace conveniences** — dark mode, recent repositories, cached previews and summaries, accessible tabs, live status, and a mobile layout.
 - **Binary + size guards** — files over 100 KB or with null bytes are rejected with a clear error before they reach OpenAI.
 - **Snake_case JSON contract** — REST endpoints return snake_case keys so the API is drop-in compatible with the original Python service.
 - **Deployable with one Dockerfile** — runs locally on port 8080 or on Railway with the platform-assigned port.
@@ -258,6 +262,19 @@ Generate an AI summary for a specific file in the repository.
 | 404  | File not found in repository |
 | 429  | GitHub API rate limit exceeded |
 | 502  | GitHub API or OpenAI API failure |
+
+---
+
+### `POST /api/repository/file`
+
+Return a safe text preview for a selected file. Binary files are rejected and large previews return `"truncated": true`.
+
+```json
+{
+  "repo_url": "https://github.com/owner/repository",
+  "file_path": "src/main/App.java"
+}
+```
 
 ---
 
