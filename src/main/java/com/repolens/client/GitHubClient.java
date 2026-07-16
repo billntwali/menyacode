@@ -17,6 +17,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 @Component
 public class GitHubClient {
@@ -110,7 +111,14 @@ public class GitHubClient {
         String htmlUrl  = node.has("html_url")  ? node.get("html_url").asText()  : "https://github.com/" + owner + "/" + repo;
         String repoName = node.has("name")       ? node.get("name").asText()      : repo;
 
-        return new RepoInfo(owner, repoName, defaultBranch, htmlUrl);
+        String license = node.path("license").path("spdx_id").asText("");
+        List<String> topics = node.path("topics").isArray()
+                ? StreamSupport.stream(node.path("topics").spliterator(), false).map(JsonNode::asText).toList()
+                : List.of();
+        return new RepoInfo(owner, repoName, defaultBranch, htmlUrl,
+                textOrNull(node, "description"), textOrNull(node, "language"),
+                node.path("stargazers_count").asInt(), node.path("forks_count").asInt(),
+                license, textOrNull(node, "updated_at"), topics);
     }
 
     // ──────────────────────────────────────────────────────────
@@ -288,7 +296,9 @@ public class GitHubClient {
 
     public record ParsedRepo(String owner, String repo) {}
 
-    public record RepoInfo(String owner, String name, String defaultBranch, String htmlUrl) {}
+    public record RepoInfo(String owner, String name, String defaultBranch, String htmlUrl,
+                           String description, String language, int stars, int forks,
+                           String license, String updatedAt, List<String> topics) {}
 
     public record GitHubTreeItem(String path, String type, Integer size) {}
 
