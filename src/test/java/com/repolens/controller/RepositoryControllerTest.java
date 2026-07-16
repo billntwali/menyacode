@@ -14,6 +14,8 @@ import com.repolens.model.TraversalEntry;
 import com.repolens.model.TreeNode;
 import com.repolens.service.RepositoryService;
 import com.repolens.service.SummaryService;
+import com.repolens.service.FileService;
+import com.repolens.dto.FileResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -36,11 +38,13 @@ class RepositoryControllerTest {
 
     @MockBean RepositoryService repositoryService;
     @MockBean SummaryService    summaryService;
+    @MockBean FileService       fileService;
 
     // ── Helpers ──────────────────────────────────────────────────
 
     private ExploreResponse sampleResponse() {
-        RepositoryInfo info = new RepositoryInfo("owner", "repo", "main", "https://github.com/owner/repo");
+        RepositoryInfo info = new RepositoryInfo("owner", "repo", "main", "https://github.com/owner/repo",
+                "Example repository", "Java", 12, 3, "MIT", "2026-01-01T00:00:00Z", List.of("demo"));
         TreeNode root = new TreeNode("repo", "", NodeType.DIRECTORY, null,
                 List.of(new TreeNode("README.md", "README.md", NodeType.FILE, 100, List.of())));
         List<TraversalEntry> entries = List.of(
@@ -211,5 +215,20 @@ class RepositoryControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").exists());
+    }
+
+    @Test
+    void file_validRequest_returnsPreview() throws Exception {
+        when(fileService.preview(any())).thenReturn(
+                new FileResponse("README.md", "# Hello", "Markdown", 7, false));
+
+        mvc.perform(post("/api/repository/file")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"repo_url":"https://github.com/owner/repo","file_path":"README.md"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.language").value("Markdown"))
+                .andExpect(jsonPath("$.truncated").value(false));
     }
 }
