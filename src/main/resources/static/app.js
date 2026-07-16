@@ -1,338 +1,94 @@
-/* ─────────────────────────────────────────────────────────────────
-   RepoLens – client-side interactivity
-   Vanilla JS; no build step required.
-   ───────────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const state = { data:null, repoUrl:'', selected:null, flat:[], summaries:new Map(), previews:new Map() };
+const icons = { directory:'▸', Java:'◆', JavaScript:'◇', TypeScript:'◇', Python:'●', Markdown:'▤', JSON:'{}', CSS:'#', HTML:'<>', Text:'·' };
 
-// ── State ────────────────────────────────────────────────────────
-const state = {
-    repoData:      null,   // full ExploreResponse
-    selectedPath:  null,   // currently highlighted path
-    traversalMap:  new Map(), // path -> { order, depth }
-    currentRepoUrl: '',
-};
-
-// ── DOM refs ─────────────────────────────────────────────────────
-const $ = (id) => document.getElementById(id);
-const exploreForm        = $('explore-form');
-const repoUrlInput       = $('repo-url');
-const traversalSelect    = $('traversal-mode');
-const exploreBtn         = $('explore-btn');
-const errorBanner        = $('error-banner');
-const treeBadges         = $('tree-badges');
-const badgeTraversal     = $('badge-traversal');
-const badgeCount         = $('badge-count');
-const treePlaceholder    = $('tree-placeholder');
-const treeRoot           = $('tree-root');
-const detailsPlaceholder = $('details-placeholder');
-const detailsContent     = $('details-content');
-const summarySection     = $('summary-section');
-const summaryMeta        = $('summary-meta');
-const summarizeBtn       = $('summarize-btn');
-const summaryLoading     = $('summary-loading');
-const summaryError       = $('summary-error');
-const summaryText        = $('summary-text');
-
-// ── TRY chip click handlers ───────────────────────────────────────
-document.querySelectorAll('.try-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-        repoUrlInput.value = btn.dataset.repo;
-        repoUrlInput.focus();
-    });
-});
-
-// ── Explore form submission ───────────────────────────────────────
-exploreForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await handleExplore();
-});
-
-async function handleExplore() {
-    const repoUrl      = repoUrlInput.value.trim();
-    const traversalMode = traversalSelect.value;
-
-    if (!repoUrl) {
-        showError('Please enter a GitHub repository URL.');
-        return;
-    }
-
-    setLoading(true);
-    hideError();
-
-    try {
-        const response = await fetch('/api/repository/explore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repo_url: repoUrl, traversal_mode: traversalMode }),
-        });
-
-        const payload = await safeJson(response);
-
-        if (!response.ok) {
-            throw new Error(payload?.detail ?? 'Could not load repository.');
-        }
-
-        state.repoData      = payload;
-        state.currentRepoUrl = repoUrl;
-        state.traversalMap  = buildTraversalMap(payload.traversal);
-        state.selectedPath  = null;
-
-        renderTree(payload);
-        clearDetails();
-    } catch (err) {
-        showError(err instanceof Error ? err.message : 'Unexpected error while loading repository.');
-        clearTree();
-        clearDetails();
-    } finally {
-        setLoading(false);
-    }
+init();
+function init(){
+  const savedTheme=localStorage.getItem('menyacode-theme');
+  if(savedTheme==='dark'||(!savedTheme&&matchMedia('(prefers-color-scheme: dark)').matches)) document.body.classList.add('dark');
+  $('theme-toggle').addEventListener('click',()=>{document.body.classList.toggle('dark');localStorage.setItem('menyacode-theme',document.body.classList.contains('dark')?'dark':'light')});
+  $('explore-form').addEventListener('submit',e=>{e.preventDefault();explore()});
+  document.querySelectorAll('.try-chip').forEach(b=>b.addEventListener('click',()=>{$('repo-url').value=b.dataset.repo;explore()}));
+  $('tree-search').addEventListener('input',renderTree);
+  $('type-filter').addEventListener('change',renderTree);
+  $('traversal-mode').addEventListener('change',recalculateTraversal);
+  $('expand-all').addEventListener('click',()=>document.querySelectorAll('.tree-children').forEach(x=>x.hidden=false));
+  $('collapse-all').addEventListener('click',()=>document.querySelectorAll('.tree-children').forEach(x=>x.hidden=true));
+  $('summarize-btn').addEventListener('click',summarize);
+  $('copy-code').addEventListener('click',async()=>{await navigator.clipboard.writeText($('file-content').textContent);$('copy-code').textContent='Copied';setTimeout(()=>$('copy-code').textContent='Copy',1200)});
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>selectTab(t.dataset.tab)));
+  document.addEventListener('keydown',e=>{if(e.key==='/'&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){e.preventDefault();$('tree-search').focus()}});
+  renderRecent();
 }
 
-// ── Tree rendering ───────────────────────────────────────────────
-function renderTree(data) {
-    treeRoot.innerHTML = '';
-
-    const rootItem = createTreeItem(data.tree, 0, true);
-    treeRoot.appendChild(rootItem);
-
-    treePlaceholder.hidden = true;
-    treeRoot.hidden        = false;
-
-    badgeTraversal.textContent = data.traversal_mode === 'dfs' ? 'Depth-First' : 'Breadth-First';
-    badgeCount.textContent     = `${data.traversal.length} nodes`;
-    treeBadges.hidden          = false;
+async function explore(){
+  const repoUrl=$('repo-url').value.trim(), branch=$('branch').value.trim();
+  if(!repoUrl)return showError('Enter a GitHub repository URL.');
+  setLoading(true);hideError();
+  try{
+    const response=await fetch('/api/repository/explore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:repoUrl,traversal_mode:$('traversal-mode').value,branch})});
+    const payload=await json(response);if(!response.ok)throw Error(payload?.detail||'Could not load repository.');
+    state.data=payload;state.repoUrl=repoUrl;state.selected=null;state.flat=flatten(payload.tree);state.summaries.clear();state.previews.clear();
+    renderRepository();renderTree();saveRecent(repoUrl,payload.repository.name);
+    $('welcome').hidden=true;$('workspace').hidden=false;$('empty-detail').hidden=false;$('file-detail').hidden=true;
+  }catch(e){showError(e.message)}finally{setLoading(false)}
 }
 
-function createTreeItem(node, depth, isRoot) {
-    const li  = document.createElement('li');
-    const row = document.createElement('div');
-    row.className = 'tree-item-row';
-    row.style.marginLeft = `${depth * 0.75}rem`;
-    row.dataset.path = node.path;
-
-    const isDir = node.type === 'directory';
-
-    // Toggle or bullet
-    if (isDir) {
-        const toggle = document.createElement('button');
-        toggle.type      = 'button';
-        toggle.className = 'tree-toggle';
-        toggle.textContent = '▸';
-        toggle.setAttribute('aria-label', 'Expand folder');
-        row.appendChild(toggle);
-    } else {
-        const bullet = document.createElement('span');
-        bullet.className   = 'tree-bullet';
-        bullet.textContent = '•';
-        row.appendChild(bullet);
-    }
-
-    // Name button
-    const nameBtn = document.createElement('button');
-    nameBtn.type      = 'button';
-    nameBtn.className = 'tree-name-btn';
-    nameBtn.addEventListener('click', () => selectNode(node));
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className   = 'tree-name';
-    nameSpan.textContent = node.name;
-    nameBtn.appendChild(nameSpan);
-
-    if (!isDir && node.size !== null && node.size !== undefined) {
-        const sizeSpan = document.createElement('span');
-        sizeSpan.className   = 'tree-size';
-        sizeSpan.textContent = formatBytes(node.size);
-        nameBtn.appendChild(sizeSpan);
-    }
-
-    row.appendChild(nameBtn);
-    li.appendChild(row);
-
-    // Children (lazy-rendered on first expand)
-    if (isDir && node.children && node.children.length > 0) {
-        const childUl = document.createElement('ul');
-        childUl.className = 'tree-children';
-        childUl.hidden    = true;
-        let rendered = false;
-
-        const toggle = row.querySelector('.tree-toggle');
-
-        function expandCollapse() {
-            const willExpand = childUl.hidden;
-
-            if (willExpand && !rendered) {
-                const frag = document.createDocumentFragment();
-                node.children.forEach(child => frag.appendChild(createTreeItem(child, depth + 1, false)));
-                childUl.appendChild(frag);
-                rendered = true;
-            }
-
-            childUl.hidden   = !willExpand;
-            toggle.textContent = willExpand ? '▾' : '▸';
-            toggle.setAttribute('aria-label', willExpand ? 'Collapse folder' : 'Expand folder');
-        }
-
-        toggle.addEventListener('click', expandCollapse);
-
-        if (isRoot) expandCollapse(); // auto-expand root
-
-        li.appendChild(childUl);
-    }
-
-    return li;
+function renderRepository(){
+  const r=state.data.repository;
+  $('repo-title').textContent=`${r.owner} / ${r.name}`;$('repo-branch').textContent=r.default_branch;
+  $('repo-description').textContent=r.description||'No repository description provided.';$('repo-language').textContent=r.language?`● ${r.language}`:'';
+  $('repo-stars').textContent=`★ ${number(r.stars)}`;$('repo-forks').textContent=`⑂ ${number(r.forks)}`;$('repo-link').href=r.html_url;
+  $('repo-topics').replaceChildren(...(r.topics||[]).slice(0,6).map(topic=>el('span',{text:topic})));
 }
 
-// ── Node selection ───────────────────────────────────────────────
-function selectNode(node) {
-    // Deselect previous
-    document.querySelectorAll('.tree-item-row.is-selected')
-            .forEach(el => el.classList.remove('is-selected'));
-
-    // Highlight new
-    const matchingRow = document.querySelector(`.tree-item-row[data-path="${CSS.escape(node.path)}"]`);
-    if (matchingRow) matchingRow.classList.add('is-selected');
-
-    state.selectedPath = node.path;
-
-    // Populate details panel
-    const repo       = state.repoData.repository;
-    const traversal  = state.traversalMap.get(node.path);
-    const isRoot     = node.path === state.repoData.tree.path;
-
-    $('meta-name').textContent = isRoot ? repo.name : node.name;
-    $('meta-path').textContent = isRoot ? '/' : node.path;
-    $('meta-type').textContent = node.type.charAt(0).toUpperCase() + node.type.slice(1);
-    $('meta-size').textContent = node.type === 'file' ? formatBytes(node.size) : 'N/A';
-    $('meta-order').textContent = traversal ? traversal.order : 'N/A';
-    $('meta-depth').textContent = traversal ? traversal.depth : 'N/A';
-
-    const repoLink = $('meta-repo-link');
-    repoLink.textContent = `${repo.owner}/${repo.name}`;
-    repoLink.href        = repo.html_url;
-
-    detailsPlaceholder.hidden = true;
-    detailsContent.hidden     = false;
-
-    // Summary section visibility
-    const isFile = node.type === 'file';
-    summarySection.hidden = !isFile;
-
-    if (isFile) {
-        resetSummary();
-    }
+function renderTree(){
+  if(!state.data)return;const q=$('tree-search').value.trim().toLowerCase(),type=$('type-filter').value;
+  $('tree-root').innerHTML='';let count=0;
+  if(q){
+    const matches=state.flat.filter(n=>(type==='all'||n.type===type)&&n.path.toLowerCase().includes(q));count=matches.length;
+    matches.slice(0,300).forEach(n=>$('tree-root').appendChild(treeItem(n,0,false)));
+  }else{$('tree-root').appendChild(treeItem(state.data.tree,0,true));count=state.flat.length}
+  $('badge-count').textContent=`${state.flat.length.toLocaleString()} items`;$('tree-status').textContent=q?`${count} match${count===1?'':'es'}`:'';
 }
 
-// ── Summary ──────────────────────────────────────────────────────
-summarizeBtn.addEventListener('click', async () => {
-    if (!state.selectedPath || !state.currentRepoUrl) return;
-
-    const filePath = state.selectedPath;
-    const repoUrl  = state.currentRepoUrl;
-
-    setSummarizing(true);
-    hideSummaryResult();
-
-    try {
-        const response = await fetch('/api/repository/summary', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repo_url: repoUrl, file_path: filePath }),
-        });
-
-        const payload = await safeJson(response);
-
-        if (!response.ok) {
-            showSummaryError(payload?.detail ?? 'Could not generate summary.');
-            return;
-        }
-
-        summaryText.textContent = payload.summary;
-        summaryText.hidden      = false;
-
-        if (payload.model || payload.language || payload.analyzed_chars) {
-            $('summary-model').textContent    = payload.model    ?? '—';
-            $('summary-language').textContent = payload.language ?? '—';
-            $('summary-chars').textContent    = payload.analyzed_chars != null
-                ? payload.analyzed_chars.toLocaleString() : '—';
-            summaryMeta.hidden = false;
-        }
-    } catch (err) {
-        showSummaryError(err instanceof Error ? err.message : 'Unexpected error generating summary.');
-    } finally {
-        setSummarizing(false);
-    }
-});
-
-function resetSummary() {
-    summaryLoading.hidden = true;
-    summaryError.hidden   = true;
-    summaryText.hidden    = true;
-    summaryMeta.hidden    = true;
-    summarizeBtn.disabled = false;
-    summaryText.textContent = '';
+function treeItem(node,depth,root){
+  const li=el('li',{role:'treeitem'}),row=el('div',{class:'tree-item-row'+(node.path===state.selected?.path?' is-selected':'')});row.style.paddingLeft=`${Math.min(depth,20)*12}px`;
+  const dir=node.type==='directory',toggle=el('button',{class:dir?'tree-toggle':'tree-bullet',text:dir?'▸':'·','aria-label':dir?'Expand folder':''});row.append(toggle);
+  const language=detectLanguage(node.path),name=el('button',{class:'tree-name-btn'});name.append(el('span',{text:dir?'📁':fileIcon(language)}),el('span',{class:'tree-name',text:node.name}));
+  if(!dir&&node.size!=null)name.append(el('span',{class:'tree-size',text:bytes(node.size)}));name.addEventListener('click',()=>selectNode(node));row.append(name);li.append(row);
+  if(dir&&node.children?.length){const ul=el('ul',{class:'tree-children',role:'group'});ul.hidden=!root;node.children.forEach(c=>ul.append(treeItem(c,depth+1,false)));toggle.addEventListener('click',()=>{ul.hidden=!ul.hidden;toggle.textContent=ul.hidden?'▸':'▾'});li.append(ul)}
+  return li;
 }
 
-function setSummarizing(loading) {
-    summarizeBtn.disabled = loading;
-    summaryLoading.hidden = !loading;
+async function selectNode(node){
+  state.selected=node;renderTree();if(node.type==='directory')return;
+  $('empty-detail').hidden=true;$('file-detail').hidden=false;$('file-name').textContent=node.name;$('file-path').textContent=node.path;
+  const lang=detectLanguage(node.path);$('file-icon').textContent=fileIcon(lang);$('file-github-link').href=`${state.data.repository.html_url}/blob/${encodeURIComponent(state.data.repository.default_branch)}/${node.path.split('/').map(encodeURIComponent).join('/')}`;
+  $('metadata-grid').replaceChildren(...[['Name',node.name],['Path',node.path],['Type','File'],['Size',bytes(node.size)],['Language',lang],['Traversal order',traversal(node.path)?.order??'—'],['Depth',traversal(node.path)?.depth??'—'],['Branch',state.data.repository.default_branch]].map(([k,v])=>{const d=el('div');d.append(el('dt',{text:k}),el('dd',{text:String(v)}));return d}));
+  selectTab('preview');await preview(node);
 }
 
-function hideSummaryResult() {
-    summaryError.hidden = true;
-    summaryText.hidden  = true;
+async function preview(node){
+  $('preview-language').textContent=detectLanguage(node.path);$('preview-size').textContent=bytes(node.size);$('preview-notice').hidden=true;$('file-content').textContent='';
+  if(state.previews.has(node.path)){showPreview(state.previews.get(node.path));return}$('preview-loading').hidden=false;
+  try{const response=await fetch('/api/repository/file',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:state.repoUrl,file_path:node.path})});const p=await json(response);if(!response.ok)throw Error(p?.detail||'Preview unavailable.');state.previews.set(node.path,p);showPreview(p)}catch(e){$('preview-notice').textContent=e.message;$('preview-notice').hidden=false}finally{$('preview-loading').hidden=true}
 }
+function showPreview(p){$('file-content').textContent=withLineNumbers(p.content);if(p.truncated){$('preview-notice').textContent='This preview was truncated because the file is large.';$('preview-notice').hidden=false}}
 
-function showSummaryError(message) {
-    summaryError.textContent = message;
-    summaryError.hidden      = false;
+async function summarize(){
+  const path=state.selected?.path;if(!path)return;if(state.summaries.has(path)){showSummary(state.summaries.get(path));return}
+  $('summary-loading').hidden=false;$('summary-error').hidden=true;$('summarize-btn').disabled=true;
+  try{const response=await fetch('/api/repository/summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({repo_url:state.repoUrl,file_path:path})});const p=await json(response);if(!response.ok)throw Error(p?.detail||'Could not generate explanation.');state.summaries.set(path,p);showSummary(p)}catch(e){$('summary-error').textContent=e.message;$('summary-error').hidden=false}finally{$('summary-loading').hidden=true;$('summarize-btn').disabled=false}
 }
+function showSummary(p){$('summary-text').textContent=p.summary;$('summary-text').hidden=false;$('summary-meta').textContent=`${p.language} · ${p.analyzed_chars.toLocaleString()} characters · ${p.model}`;$('summary-meta').hidden=false}
+function selectTab(name){document.querySelectorAll('.tab').forEach(t=>{const active=t.dataset.tab===name;t.classList.toggle('active',active);t.setAttribute('aria-selected',active)});document.querySelectorAll('.tab-panel').forEach(p=>p.hidden=p.id!==`tab-${name}`)}
+function recalculateTraversal(){if(!state.data)return;const list=[],queue=[[state.data.tree,0]];if($('traversal-mode').value==='bfs'){while(queue.length){const [n,d]=queue.shift();list.push({path:n.path,depth:d,order:list.length+1});n.children?.forEach(c=>queue.push([c,d+1]))}}else{const walk=(n,d)=>{list.push({path:n.path,depth:d,order:list.length+1});n.children?.forEach(c=>walk(c,d+1))};walk(state.data.tree,0)}state.data.traversal=list;if(state.selected)selectNode(state.selected)}
 
-// ── Helpers ──────────────────────────────────────────────────────
-function buildTraversalMap(entries) {
-    const map = new Map();
-    for (const entry of entries) {
-        map.set(entry.path, { order: entry.order, depth: entry.depth });
-    }
-    return map;
-}
-
-function formatBytes(value) {
-    if (value === null || value === undefined) return 'N/A';
-    if (value < 1024) return `${value} B`;
-    const units  = ['KB', 'MB', 'GB'];
-    let amount   = value / 1024;
-    let idx      = 0;
-    while (amount >= 1024 && idx < units.length - 1) { amount /= 1024; idx++; }
-    return `${amount.toFixed(1)} ${units[idx]}`;
-}
-
-async function safeJson(response) {
-    try { return await response.json(); } catch { return null; }
-}
-
-function showError(message) {
-    errorBanner.textContent = message;
-    errorBanner.hidden      = false;
-}
-
-function hideError() {
-    errorBanner.hidden = true;
-}
-
-function setLoading(loading) {
-    exploreBtn.disabled   = loading;
-    exploreBtn.textContent = loading ? 'Loading…' : 'Load Repository';
-}
-
-function clearTree() {
-    treeRoot.innerHTML     = '';
-    treeRoot.hidden        = true;
-    treePlaceholder.hidden = false;
-    treeBadges.hidden      = true;
-}
-
-function clearDetails() {
-    detailsContent.hidden     = true;
-    detailsPlaceholder.hidden = false;
-    summarySection.hidden     = true;
-    resetSummary();
-}
+function flatten(root){const out=[];(function walk(n){out.push(n);n.children?.forEach(walk)})(root);return out}function traversal(path){return state.data.traversal.find(x=>x.path===path)}
+function detectLanguage(path){const ext=path.split('.').pop().toLowerCase(),map={java:'Java',js:'JavaScript',jsx:'JavaScript',ts:'TypeScript',tsx:'TypeScript',py:'Python',md:'Markdown',json:'JSON',css:'CSS',scss:'CSS',html:'HTML',go:'Go',rs:'Rust',rb:'Ruby',swift:'Swift',kt:'Kotlin',yml:'YAML',yaml:'YAML',xml:'XML',sql:'SQL',sh:'Shell'};return map[ext]||'Text'}
+function fileIcon(lang){return icons[lang]||'·'}function bytes(v){if(v==null)return'—';if(v<1024)return`${v} B`;if(v<1048576)return`${(v/1024).toFixed(1)} KB`;return`${(v/1048576).toFixed(1)} MB`}function number(v){return(v||0).toLocaleString()}
+function withLineNumbers(content){return content.split('\n').map((line,i)=>`${String(i+1).padStart(4)}  ${line}`).join('\n')}function el(tag,props={}){const n=document.createElement(tag);for(const[k,v]of Object.entries(props)){if(k==='text')n.textContent=v;else if(k==='class')n.className=v;else n.setAttribute(k,v)}return n}
+async function json(r){try{return await r.json()}catch{return null}}function setLoading(v){$('explore-btn').disabled=v;$('explore-btn').textContent=v?'Analyzing…':'Analyze'}function showError(m){$('error-banner').textContent=m;$('error-banner').hidden=false}function hideError(){$('error-banner').hidden=true}
+function saveRecent(url,name){const recent=JSON.parse(localStorage.getItem('menyacode-recent')||'[]').filter(x=>x.url!==url);recent.unshift({url,name});localStorage.setItem('menyacode-recent',JSON.stringify(recent.slice(0,5)))}
+function renderRecent(){const recent=JSON.parse(localStorage.getItem('menyacode-recent')||'[]');if(!recent.length)return;$('recent-section').hidden=false;$('recent-repos').replaceChildren(...recent.map(x=>{const b=el('button',{text:x.name});b.onclick=()=>{$('repo-url').value=x.url;explore()};return b}))}
