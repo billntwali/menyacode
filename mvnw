@@ -5,7 +5,6 @@
 set -e
 
 MAVEN_WRAPPER_JAR=".mvn/wrapper/maven-wrapper.jar"
-MAVEN_PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 if [ ! -f "$MAVEN_WRAPPER_JAR" ]; then
     WRAPPER_URL=$(grep wrapperUrl .mvn/wrapper/maven-wrapper.properties | cut -d= -f2-)
@@ -19,5 +18,4 @@ if [ ! -f "$MAVEN_WRAPPER_JAR" ]; then
     fi
 fi
 
-exec java -Dmaven.multiModuleProjectDirectory="$MAVEN_PROJECT_DIR" \
-    -cp "$MAVEN_WRAPPER_JAR" org.apache.maven.wrapper.MavenWrapperMain "$@"
+exec java -cp "$MAVEN_WRAPPER_JAR" org.apache.maven.wrapper.MavenWrapperMain "$@"
