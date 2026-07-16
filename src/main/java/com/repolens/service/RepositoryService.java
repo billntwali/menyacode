@@ -12,6 +12,9 @@ import com.repolens.model.TreeNode;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import java.time.Duration;
 
 @Service
 public class RepositoryService {
@@ -19,6 +22,8 @@ public class RepositoryService {
     private final GitHubClient      githubClient;
     private final TreeBuilderService treeBuilder;
     private final TraversalService   traversal;
+    private final Cache<String, CachedRepository> cache = Caffeine.newBuilder()
+            .maximumSize(100).expireAfterWrite(Duration.ofMinutes(10)).build();
 
     public RepositoryService(GitHubClient githubClient,
                              TreeBuilderService treeBuilder,
@@ -32,9 +37,12 @@ public class RepositoryService {
         ParsedRepo parsed = githubClient.parseUrl(request.repoUrl());
 
         RepoInfo repoInfo = githubClient.fetchRepoInfo(parsed.owner(), parsed.repo());
-
-        List<GitHubTreeItem> items = githubClient.fetchTree(
-                parsed.owner(), parsed.repo(), repoInfo.defaultBranch());
+        String branch = request.branch() == null || request.branch().isBlank()
+                ? repoInfo.defaultBranch() : request.branch().strip();
+        String cacheKey = parsed.owner() + "/" + parsed.repo() + "@" + branch;
+        CachedRepository cached = cache.get(cacheKey, key -> new CachedRepository(
+                githubClient.fetchTree(parsed.owner(), parsed.repo(), branch)));
+        List<GitHubTreeItem> items = cached.items();
 
         TreeNode tree = treeBuilder.build(repoInfo.name(), items);
 
@@ -44,10 +52,13 @@ public class RepositoryService {
         RepositoryInfo info = new RepositoryInfo(
                 repoInfo.owner(),
                 repoInfo.name(),
-                repoInfo.defaultBranch(),
-                repoInfo.htmlUrl()
+                branch,
+                repoInfo.htmlUrl(), repoInfo.description(), repoInfo.language(),
+                repoInfo.stars(), repoInfo.forks(), repoInfo.license(), repoInfo.updatedAt(), repoInfo.topics()
         );
 
         return new ExploreResponse(info, tree, mode, entries);
     }
+
+    private record CachedRepository(List<GitHubTreeItem> items) {}
 }
